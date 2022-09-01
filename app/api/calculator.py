@@ -162,7 +162,7 @@ class Number():
             index = expression[start+1:end].find('(')
         start += index + 1
 
-        # Insert evalutated paranthesis into expression
+        # Insert evaluated paranthesis into expression
         inside = expression[start+1:end]
         number = Number(inside).evaluate()
         expression = \
@@ -212,11 +212,11 @@ class Number():
         # Parse expression based on operators
         if '*' in expression:
             expression = self._eval_multiplication(expression)
-        if '/' in expression:
+        elif '/' in expression:
             expression = self._eval_division(expression)
-        if '+' in expression:
+        elif '+' in expression:
             expression = self._eval_addition(expression)
-        if '-' in expression:
+        else:
             expression = self._eval_subtraction(expression)
 
         # Convert expression to float
