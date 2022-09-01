@@ -34,5 +34,5 @@ jobs:
 
       - name: run unit tests
         run: |
-          python app/tests.py
-          pytest app/api/tests.py
+          pytest app/tests.py
+          python app/api/tests.py
