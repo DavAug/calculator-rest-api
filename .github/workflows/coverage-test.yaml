@@ -32,5 +32,6 @@ jobs:
           python -m pip install pytest
       - name: run coverage
         run: |
-          coverage run -m pytest app/tests.py
+          coverage report -m pytest app/tests.py
+          coverage report -m python app/api/tests.py
 
