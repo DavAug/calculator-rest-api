@@ -30,8 +30,14 @@ def test_index(client):
 
 def test_calculator(client):
     # Check response is correct
+    response = client.post('/calc', json={"expression": "0.3"})
+    assert response.json["result"] == "0.3"
+
+    response = client.post('/calc', json={"expression": "0.3 + 1 + 2"})
+    assert response.json["result"] == "3.3"
+
     response = client.post('/calc', json={"expression": "-1 * (2 * 6 / 3)"})
-    assert response.json["result"] == "Test result"
+    assert response.json["result"] == "-4"
 
     # Error is thrown when no data is posted
     response = client.post('/calc')

@@ -27,6 +27,10 @@ def calc():
         abort(400)
 
     # Calculate result
-    result = calculator_api.calculate(data)
+    result = calculator_api.calculate(data["expression"])
+    try:
+        result = calculator_api.calculate(data["expression"])
+    except ValueError:
+        abort(400)
 
     return jsonify(result)
