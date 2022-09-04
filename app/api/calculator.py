@@ -20,17 +20,18 @@ def calculate(expression):
 
     :rtype: dict
     """
-    # Parse expression
-    number = Number(expression)
-    try:
-        number = number.evaluate()
-    except ValueError:
-        raise ValueError("Invalid expression. Expression cannot be evaluated.")
+    # Evaluate expression
+    number = Expression(expression).evaluate()
 
-    # For cosmetics, convert float into integer when number is an integer
-    number = int(number) if number.is_integer() else number
+    # For cosmetics:
+    if number.is_integer():
+        # convert float into integer when number is an integer
+        number = str(int(number))
+    else:
+        # Round to floating precision and remove trailing decimal zeros
+        number = str(round(number, ndigits=14))
 
-    return {"result": str(number)}
+    return {"result": number}
 
 
 def get_schema():
@@ -50,9 +51,11 @@ def get_schema():
     return schema
 
 
-class Number():
+class Expression():
     """
-    Defines a number based on the evaluation of a string expression.
+    Defines an expression from a string.
+
+    Supported operators are +, -, *, /. Supported parenthesis are ( and ).
 
     :param expression: Expression.
     :type expression: str
@@ -61,165 +64,126 @@ class Number():
         # Remove spaces from expression
         self._expression = str(expression).replace(" ", "")
 
-        # Check whether expression is ready to be converted to float
-        # (i.e. expression does not contain operations)
-        self._is_ready = not (
-            ('+' in self._expression) |
-            ('-' in self._expression) |
-            ('*' in self._expression) |
-            ('/' in self._expression) |
-            ('(' in self._expression) |
-            (')' in self._expression)
-        )
-
-    def _eval_addition(self, expression):
+    def _find_operator_index(self, expression, op):
         """
-        Splits the expression based on the addition operator and
-        returns a new expression with the evaluated addition result.
-
-        :param expression: Expression.
-        :type expression: str
-
-        :rtype: str
+        Returns the operator index following precedence of parentheses.
         """
-        operator_index = expression.find('+')
-
-        # Return expression if it doesn't contain any additions
-        if (operator_index == -1) or (operator_index == 0):
-            return expression
-
-        # Evaluate expression
-        left = Number(expression[:operator_index]).evaluate()
-        right = Number(expression[operator_index+1:]).evaluate()
-        expression = f'{left + right:.14f}'
-
-        return expression
-
-    def _eval_division(self, expression):
-        """
-        Splits the expression based on the division operator and
-        returns a new expression with the evaluated division result.
-
-        :param expression: Expression.
-        :type expression: str
-
-        :rtype: str
-        """
-        operator_index = expression.find('/')
-
-        # Return expression if it doesn't contain any division
-        if operator_index == -1:
-            return expression
-
-        # Evaluate expression
-        left = Number(expression[:operator_index]).evaluate()
-        right = Number(expression[operator_index+1:]).evaluate()
-        expression = f'{left / right:.14f}'
-
-        return expression
-
-    def _eval_multiplication(self, expression):
-        """
-        Splits the expression based on the multiplication operator and
-        returns a new expression with the evaluated multiplication result.
-
-        :param expression: Expression.
-        :type expression: str
-
-        :rtype: str
-        """
-        operator_index = expression.find('*')
-
-        # Return expression if it doesn't contain any multiplication
-        if operator_index == -1:
-            return expression
-
-        # Evaluate expression
-        left = Number(expression[:operator_index]).evaluate()
-        right = Number(expression[operator_index+1:]).evaluate()
-        expression = f'{left * right:.14f}'
-
-        return expression
-
-    def _eval_parentheses(self, expression):
-        """
-        Splits the expression based on the parentheses and returns a new
-        expression, where the expression in the paranthesis is evaluated.
-
-        :param expression: Expression.
-        :type expression: str
-
-        :rtype: str
-        """
-        # Find bracket in expression
+        operator_index = expression.find(op)
         start = expression.find('(')
+
+        # If no parentheses exist or operator is before opening parenthesis,
+        # return
+        if (start == -1) or (operator_index <= start):
+            return operator_index
+
+        # Find matching closing parenthesis and return operator to the right
         end = start + expression[start:].find(')')
+        another_opening = expression[start+1:end].find('(') + 1
+        while another_opening != -1:
+            start += another_opening + 1
+            end = start + expression[start:].find(')')
+            another_opening = expression[start+1:end].find('(')
 
-        # Check that there are no interior opening brackets
-        index = 0
-        while index != -1:
-            start += index
-            index = expression[start+1:end].find('(')
-        start += index + 1
+        operator_index = end + 1
 
-        # Insert evaluated paranthesis into expression
-        inside = expression[start+1:end]
-        number = Number(inside).evaluate()
-        expression = \
-            expression[:start] + str(number) + expression[end+1:]
+        return operator_index
 
-        return expression
-
-    def _eval_subtraction(self, expression):
+    def _parse_expression(self):
         """
-        Splits the expression based on the subtraction operator and
-        returns a new expression with the evaluated subtraction result.
+        Parses the expression.
 
-        :param expression: Expression.
-        :type expression: str
+        The expression is parsed to
+
+            - a float, if the expression contains no operators (except leading
+                operators, such as -2, or +10.
+            - or an expression-operator-expression triplet if the expression
+                contains operators.
+
+        The expression-operator-expression follows operator precedence.
+
+        :rtype: (float, None, None) or (Expression, str, Expression)
+        """
+        # Remove encapsulating parentheses
+        expression = self._remove_parentheses(self._expression)
+
+        # Parse expression into expression-operator-expression triplet
+        # following operator precedence.
+        for op in ['*', '/', '+', '-']:
+            left, right = self._parse_triplet(expression, op)
+            if left:
+                return Expression(left), op, Expression(right)
+
+        # No operators and parentheses are left. So float can be returned.
+        try:
+            number = float(expression)
+        except ValueError:
+            raise ValueError(
+                "Invalid expression. Expression cannot be evaluated.")
+
+        return number, None, None
+
+    def _parse_triplet(self, expression, op):
+        """
+        Splits the expression at the operator location.
+        """
+        left, right = None, None
+        operator_index = self._find_operator_index(expression, op)
+        if (operator_index != -1) and (operator_index != 0):
+            left = expression[:operator_index]
+            right = expression[operator_index+1:]
+
+        return left, right
+
+    def _remove_parentheses(self, expression):
+        """
+        Strips encapsulating parentheses from the expression.
+
+        Starts from the innermost parentheses and iteratively goes to the
+        outmost parentheses. If the outmost parentheses are the first and
+        last element in the expression, they are removed.
+
+        Algorithm is applied recursively to ensure that multiple layers of
+        encapsuating parentheses are removed.
 
         :rtype: str
         """
-        operator_index = expression.find('-')
+        # Iteratively remove expression inside innermost parentheses, and stop
+        # when no parantheses are left, or parentheses are first and last
+        # element in expression
+        e = expression
+        end = 0
+        while end != -1:
+            # Find innermost bracket
+            end = e.find(')')
+            start = end - e[:end][::-1].find('(') - 1
 
-        # Return expression if it doesn't contain any subtractions
-        if (operator_index == -1) or (operator_index == 0):
-            return expression
+            # Check whether parentheses encapsulate whole expression
+            if (start == 0) and ((end + 1) == len(e)):
+                return self._remove_parentheses(expression[1:-1])
 
-        # Evaluate expression
-        left = Number(expression[:operator_index]).evaluate()
-        right = Number(expression[operator_index+1:]).evaluate()
-        expression = f'{left - right:.14f}'
+            # Remove inner expression
+            e = e[:start] + e[end+1:]
 
         return expression
 
     def evaluate(self):
         """
-        Returns the evaluated expression as a float.
+        Returns the evaluated expression.
 
         :rtype: float
         """
-        # Try easy case: expression does not contain operators or parantheses.
-        if self._is_ready:
-            number = float(self._expression)
-            return number
+        left, op, right = self._parse_expression()
+        if not op:
+            # Expression requires no further evaluation
+            return left
 
-        # Parse expression based on parentheses
-        expression = self._expression
-        if '(' in expression:
-            expression = self._eval_parentheses(expression)
+        # Perform pairwise operation
+        # NOTE: left and right expressions are recursively evaluated.
+        if op == '*':
+            return left.evaluate() * right.evaluate()
+        if op == '/':
+            return left.evaluate() / right.evaluate()
+        if op == '+':
+            return left.evaluate() + right.evaluate()
 
-        # Parse expression based on operators
-        if '*' in expression:
-            expression = self._eval_multiplication(expression)
-        elif '/' in expression:
-            expression = self._eval_division(expression)
-        elif '+' in expression:
-            expression = self._eval_addition(expression)
-        else:
-            expression = self._eval_subtraction(expression)
-
-        # Convert expression to float
-        number = float(expression)
-
-        return number
+        return left.evaluate() - right.evaluate()
