@@ -13,6 +13,9 @@ class TestCalculate(unittest.TestCase):
         result = calculate('2.2 + 10.31')
         assert result["result"] == '12.51'
 
+        result = calculate('1 + (2 / 10)')
+        assert result["result"] == '1.2'
+
         # Test invalid expression
         with self.assertRaisesRegex(ValueError, 'Invalid expression.'):
             calculate('* 123')

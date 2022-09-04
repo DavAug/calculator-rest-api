@@ -83,8 +83,11 @@ class Expression():
             start += another_opening + 1
             end = start + expression[start:].find(')')
             another_opening = expression[start+1:end].find('(')
-
         operator_index = end + 1
+
+        # If no operator exists to the right, continue to the next operator
+        if operator_index >= len(expression):
+            return -1
 
         return operator_index
 
